@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python main.py)",
+      "Bash(MPLBACKEND=Agg python main.py)",
+      "Bash(python -c ' *)",
+      "Bash(py --version)",
+      "Bash(where python3 *)",
+      "Bash(where py *)",
+      "Bash(py -c \"import pandas, sklearn, matplotlib; print\\('all packages OK'\\)\")",
+      "Bash(/c/Users/imran/anaconda3/python.exe -c \"import pandas, sklearn, matplotlib; print\\('all packages OK'\\)\")",
+      "Bash(/c/Users/imran/anaconda3/python.exe -c ' *)"
+    ]
+  }
+}
