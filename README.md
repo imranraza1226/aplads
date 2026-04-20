@@ -83,7 +83,7 @@ python main.py --simulate
 ### Streamlit Dashboard
 
 ```bash
-streamlit run app.py
+streamlit.exe run app.py
 ```
 
 Then open **http://localhost:8501** in your browser.
