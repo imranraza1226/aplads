@@ -26,7 +26,7 @@ from src.model import train_model, predict, anomaly_scores, save_model
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="AI Log Anomaly Detector",
+    page_title="Log Anomaly Detector",
     page_icon="🔍",
     layout="wide",
 )
@@ -77,7 +77,7 @@ def build_results_df(df_processed: pd.DataFrame, labels: np.ndarray, scores: np.
 
 def main():
     # ── Header ──────────────────────────────────────────────────────────────
-    st.title("🔍 AI Log Anomaly Detector")
+    st.title("🔍 Log Anomaly Detector")
     st.markdown(
         "Unsupervised anomaly detection for system logs using **Isolation Forest**. "
         "Upload your own CSV or use the built-in synthetic dataset."
@@ -113,22 +113,25 @@ def main():
     with st.spinner("Loading dataset..."):
         if uploaded is not None:
             df_raw = None
+            used_enc, used_sep = None, None
             # Windows Event Viewer exports are often UTF-16 tab-separated;
-            # try encoding + separator combinations until one works.
+            # require at least 4 columns so partial comma-misparses are rejected.
             for enc, sep in [
-                ("utf-8",     ","),
-                ("utf-8-sig", ","),   # UTF-8 with BOM
                 ("utf-16",    "\t"),  # Windows Event Viewer default
-                ("utf-16",    ","),
-                ("cp1252",    ","),
+                ("utf-8-sig", "\t"),
+                ("utf-8",     "\t"),
+                ("utf-8-sig", ","),
+                ("utf-8",     ","),
                 ("cp1252",    "\t"),
-                ("latin-1",   ","),
+                ("cp1252",    ","),
                 ("latin-1",   "\t"),
+                ("latin-1",   ","),
             ]:
                 try:
                     uploaded.seek(0)
-                    df_raw = pd.read_csv(uploaded, encoding=enc, sep=sep)
-                    if df_raw.shape[1] > 1:   # at least 2 columns → valid parse
+                    df_raw = pd.read_csv(uploaded, encoding=enc, sep=sep, index_col=False)
+                    if df_raw.shape[1] >= 4:   # need at least 4 real columns
+                        used_enc, used_sep = enc, sep
                         break
                     df_raw = None
                 except Exception:
@@ -139,6 +142,13 @@ def main():
                     "Open it in Excel → Save As → CSV UTF-8 (comma delimited), then re-upload."
                 )
                 st.stop()
+            with st.expander("🔍 Debug: raw column names (click to inspect)"):
+                st.caption(f"Parsed with encoding={used_enc!r}, separator={used_sep!r}")
+                col_repr = [repr(c) for c in df_raw.columns.tolist()]
+                st.code("\n".join(col_repr))
+                st.caption("First data row:")
+                st.code(str(df_raw.iloc[0].to_dict()))
+
             from src.preprocessing import detect_format
             try:
                 fmt = detect_format(df_raw)

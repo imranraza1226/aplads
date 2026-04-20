@@ -20,9 +20,24 @@ WINDOWS_EV_COLS = {"Level", "Date and Time", "Source", "Event ID"}
 
 
 def _normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Strip leading/trailing whitespace from column names."""
-    df.columns = [c.strip() for c in df.columns]
+    """Strip all whitespace variants (incl. non-breaking spaces) from column names."""
+    import re
+    df.columns = [re.sub(r"[\s\xa0\ufeff]+", " ", c).strip() for c in df.columns]
     return df
+
+
+def _fuzzy_rename(df: pd.DataFrame, mapping: dict) -> pd.DataFrame:
+    """
+    Rename columns using case-insensitive matching so minor typos or
+    encoding quirks in the CSV header don't silently break the rename.
+    """
+    col_lower = {c.lower(): c for c in df.columns}
+    resolved = {}
+    for target_lower, new_name in {k.lower(): v for k, v in mapping.items()}.items():
+        actual = col_lower.get(target_lower)
+        if actual:
+            resolved[actual] = new_name
+    return df.rename(columns=resolved)
 
 
 def detect_format(df: pd.DataFrame) -> str:
@@ -37,14 +52,14 @@ def detect_format(df: pd.DataFrame) -> str:
         ValueError if neither format is recognised.
     """
     df = _normalise_columns(df)
-    cols = set(df.columns)
-    if SYNTHETIC_COLS.issubset(cols):
+    cols_lower = {c.lower() for c in df.columns}
+    if {c.lower() for c in SYNTHETIC_COLS}.issubset(cols_lower):
         return "synthetic"
-    if WINDOWS_EV_COLS.issubset(cols):
+    if {c.lower() for c in WINDOWS_EV_COLS}.issubset(cols_lower):
         return "windows"
     raise ValueError(
         f"Unrecognised log format.\n"
-        f"  Found columns    : {sorted(cols)}\n"
+        f"  Found columns    : {sorted(df.columns.tolist())}\n"
         f"  Expected (option 1 - synthetic): {sorted(SYNTHETIC_COLS)}\n"
         f"  Expected (option 2 - Windows Event Log): {sorted(WINDOWS_EV_COLS)}"
     )
@@ -86,12 +101,19 @@ def adapt_windows_event_log(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df = _normalise_columns(df)
 
-    # Rename columns to internal schema
-    df = df.rename(columns={
+    # Rename columns to internal schema (case-insensitive, tolerates encoding quirks)
+    df = _fuzzy_rename(df, {
         "Source":        "ip_address",
         "Date and Time": "timestamp",
         "Event ID":      "request_type",
     })
+
+    missing = {"ip_address", "timestamp", "request_type"} - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Windows Event Log adapter could not map columns: {missing}.\n"
+            f"Actual columns found: {sorted(df.columns.tolist())}"
+        )
 
     # Map Level -> login_status (case-insensitive)
     df["login_status"] = (
