@@ -19,6 +19,12 @@ SYNTHETIC_COLS  = {"ip_address", "timestamp", "login_status", "request_type"}
 WINDOWS_EV_COLS = {"Level", "Date and Time", "Source", "Event ID"}
 
 
+def _normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Strip leading/trailing whitespace from column names."""
+    df.columns = [c.strip() for c in df.columns]
+    return df
+
+
 def detect_format(df: pd.DataFrame) -> str:
     """
     Detect the log format of the DataFrame.
@@ -30,6 +36,7 @@ def detect_format(df: pd.DataFrame) -> str:
     Raises:
         ValueError if neither format is recognised.
     """
+    df = _normalise_columns(df)
     cols = set(df.columns)
     if SYNTHETIC_COLS.issubset(cols):
         return "synthetic"
@@ -77,6 +84,7 @@ def adapt_windows_event_log(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with standardised column names.
     """
     df = df.copy()
+    df = _normalise_columns(df)
 
     # Rename columns to internal schema
     df = df.rename(columns={
@@ -276,6 +284,7 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         Fully preprocessed DataFrame ready for feature engineering.
     """
+    df = _normalise_columns(df)
     fmt = detect_format(df)
     print(f"[->] Detected log format: {fmt}")
 

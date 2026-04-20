@@ -90,16 +90,46 @@ Then open **http://localhost:8501** in your browser.
 
 ---
 
-## Dataset Format
+## Dataset Formats
 
-If supplying your own CSV, ensure these columns exist:
+The system auto-detects one of two supported formats.
 
-| Column         | Type    | Example                  |
-|----------------|---------|--------------------------|
-| `ip_address`   | string  | `192.168.1.42`           |
-| `timestamp`    | datetime| `2024-01-15 14:32:00`    |
-| `login_status` | string  | `success` / `failure`    |
-| `request_type` | string  | `GET` / `POST` / `DELETE`|
+### Option 1 — Custom / Synthetic logs
+
+| Column         | Type     | Example                   |
+|----------------|----------|---------------------------|
+| `ip_address`   | string   | `192.168.1.42`            |
+| `timestamp`    | datetime | `2024-01-15 14:32:00`     |
+| `login_status` | string   | `success` / `failure`     |
+| `request_type` | string   | `GET` / `POST` / `DELETE` |
+
+### Option 2 — Windows Event Log export
+
+Export directly from **Windows Event Viewer → Save All Events As → CSV**.
+
+| Column          | Type   | Example                    |
+|-----------------|--------|----------------------------|
+| `Level`         | string | `Information` / `Error`    |
+| `Date and Time` | string | `4/19/2025 10:15:00 AM`    |
+| `Source`        | string | `Service Control Manager`  |
+| `Event ID`      | number | `4625`                     |
+| `Task Category` | string | `(optional)`               |
+
+**Encoding note:** Windows Event Viewer CSV exports are often UTF-16 or Windows-1252.
+The dashboard handles this automatically. If upload fails, open the file in Notepad,
+choose **File → Save As → Encoding: UTF-8**, then re-upload.
+
+---
+
+## Dashboard Features
+
+- **Upload any CSV** — custom logs or Windows Event Viewer exports
+- **Contamination slider** — tune the expected anomaly percentage (1–20%)
+- **Run Detection button** — re-run the pipeline with current data and settings
+- **Filters** — filter results by anomaly status, IP address, or login status
+- **Download** — export filtered results as CSV
+- **Visualizations** — score distribution histogram, scatter plot, top anomalous IPs
+- **Real-time simulation** — stream synthetic events with live anomaly scoring
 
 ---
 

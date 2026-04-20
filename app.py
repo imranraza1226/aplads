@@ -50,11 +50,11 @@ def load_or_generate_data() -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def run_detection(df: pd.DataFrame):
+def run_detection(df: pd.DataFrame, contamination: float = 0.05):
     """Full ML pipeline: preprocess -> features -> train -> predict."""
     df_processed = preprocess(df)
     X = build_feature_matrix(df_processed)
-    model, scaler = train_model(X)
+    model, scaler = train_model(X, contamination=contamination)
     labels = predict(model, scaler, X)
     scores = anomaly_scores(model, scaler, X)
     save_model(model, scaler, MODEL_DIR)
@@ -102,8 +102,9 @@ def main():
             "Contamination (% anomalies expected)",
             min_value=1, max_value=20, value=5, step=1,
             help="Set to ~5% for most real datasets.",
-        )
+        ) / 100.0
 
+        run_btn = st.button("▶  Run Detection", use_container_width=True, type="primary")
         run_sim = st.checkbox("Show real-time simulation", value=False)
         st.divider()
         st.caption("AI Log Anomaly Detection System")
@@ -111,7 +112,33 @@ def main():
     # ── Load data ────────────────────────────────────────────────────────────
     with st.spinner("Loading dataset..."):
         if uploaded is not None:
-            df_raw = pd.read_csv(uploaded)
+            df_raw = None
+            # Windows Event Viewer exports are often UTF-16 tab-separated;
+            # try encoding + separator combinations until one works.
+            for enc, sep in [
+                ("utf-8",     ","),
+                ("utf-8-sig", ","),   # UTF-8 with BOM
+                ("utf-16",    "\t"),  # Windows Event Viewer default
+                ("utf-16",    ","),
+                ("cp1252",    ","),
+                ("cp1252",    "\t"),
+                ("latin-1",   ","),
+                ("latin-1",   "\t"),
+            ]:
+                try:
+                    uploaded.seek(0)
+                    df_raw = pd.read_csv(uploaded, encoding=enc, sep=sep)
+                    if df_raw.shape[1] > 1:   # at least 2 columns → valid parse
+                        break
+                    df_raw = None
+                except Exception:
+                    continue
+            if df_raw is None:
+                st.error(
+                    "Could not decode the CSV file. "
+                    "Open it in Excel → Save As → CSV UTF-8 (comma delimited), then re-upload."
+                )
+                st.stop()
             from src.preprocessing import detect_format
             try:
                 fmt = detect_format(df_raw)
@@ -124,10 +151,16 @@ def main():
             df_raw = load_or_generate_data()
             st.info(f"Using synthetic dataset — {len(df_raw):,} records.")
 
+    # Clear cache when user explicitly re-runs so new settings take effect
+    if run_btn:
+        run_detection.clear()
+
     # ── Run pipeline ─────────────────────────────────────────────────────────
     with st.spinner("Running anomaly detection..."):
         try:
-            df_processed, X, model, scaler, labels, scores = run_detection(df_raw)
+            df_processed, X, model, scaler, labels, scores = run_detection(
+                df_raw, contamination=contamination
+            )
         except Exception as exc:
             st.error(f"Pipeline error: {exc}")
             st.stop()
